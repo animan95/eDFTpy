@@ -43,6 +43,11 @@ def import_drivers_conf(config):
         import qepy
     if 'castep' in calcs :
         import caspytep
+    if 'qiskit' in calcs :
+        try:
+            import qiskit_nature
+        except ImportError:
+            pass
     return
 
 def config_correct(config):
@@ -61,6 +66,7 @@ def config_correct(config):
             'pwscf' : 'KS',
             'qe' : 'KS',
             'qepy' : 'KS',
+            'qiskit' : 'KS',
             'environ' : 'EX',
             'mbx' : 'MM'
             }
@@ -701,6 +707,8 @@ def config2driver(config, keysys, ions, grid, pplist = None, total_evaluator = N
             driver = get_mbx_driver(pplist, gsystem_ecut = gsystem_ecut, ecut = ecut, kpoints = kpoints, margs = margs)
         elif calculator == 'environ' :
             driver = get_environ_driver(pplist, gsystem_ecut = gsystem_ecut, ecut = ecut, kpoints = kpoints, margs = margs)
+        elif calculator == 'qiskit' :
+            driver = get_qiskit_driver(pplist, gsystem_ecut = gsystem_ecut, ecut = ecut, kpoints = kpoints, margs = margs, config = config, keysys = keysys)
         else :
             raise AttributeError(f"Not supported engine : {calculator}")
     return driver
@@ -944,6 +952,52 @@ def get_mbx_driver(pplist, margs = {}, **kwargs):
     from edftpy.engine.engine_mbx import EngineMBX
     engine = EngineMBX(xc = margs.get('xc'))
     driver = DriverMM(**margs, engine = engine)
+    return driver
+
+def get_qiskit_driver(pplist, gsystem_ecut = None, ecut = None, kpoints = {}, margs = {}, config = None, keysys = None, **kwargs):
+    """
+    Create Qiskit VQE driver.
+    
+    Args:
+        pplist: Pseudopotential list (not used for Qiskit, but kept for interface)
+        gsystem_ecut: Global system energy cutoff
+        ecut: Subsystem energy cutoff
+        kpoints: K-points dictionary (not used for Qiskit)
+        margs: Driver arguments dictionary
+        config: Configuration dictionary
+        keysys: Subsystem key (e.g., 'SUB0')
+        **kwargs: Additional arguments
+        
+    Returns:
+        DriverKS instance with EngineQiskit
+    """
+    from edftpy.engine.engine_qiskit import EngineQiskit
+    
+    # Get Qiskit-specific options from config
+    subcell = margs.get('subcell')
+    if config is None:
+        config = {}
+    if keysys is None:
+        keysys = 'SUB0'
+    
+    # Qiskit options from config (with defaults)
+    qiskit_options = config.get(keysys, {}).get('qiskit', {})
+    mapper = qiskit_options.get('mapper', 'jordan_wigner')
+    ansatz = qiskit_options.get('ansatz', 'uccsd')
+    optimizer = qiskit_options.get('optimizer', 'slsqp')
+    basis = qiskit_options.get('basis', 'sto-3g')
+    method = qiskit_options.get('method', 'rhf')
+    backend = qiskit_options.get('backend', None)
+    
+    # Create engine (ions will be set in initial())
+    engine = EngineQiskit(
+        mapper=mapper,
+        ansatz=ansatz,
+        optimizer=optimizer,
+        backend=backend
+    )
+    
+    driver = DriverKS(**margs, engine=engine)
     return driver
 
 def _get_gap(config, optimizer):

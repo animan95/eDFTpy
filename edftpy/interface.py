@@ -48,6 +48,12 @@ def import_drivers(calcs = {}):
             info += fs.format('Environ', engine_environ.__version__)
     except Exception as e:
         if 'environ' in calcs : return e
+    try:
+        from edftpy.engine import engine_qiskit
+        if 'qiskit' in calcs :
+            info += fs.format('Qiskit', engine_qiskit.__version__)
+    except Exception as e:
+        if 'qiskit' in calcs : raise e
     return info
 
 def conf2init(conf, parallel = False, **kwargs):
